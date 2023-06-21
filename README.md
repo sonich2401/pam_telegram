@@ -1,7 +1,7 @@
 # pam_telegram
 2FA for linux login via the terminal such as ssh, ftp, and normal login
 
-#Why did I make this?
+# Why did I make this?
 I got a Oracle Cloud Compute server and found many people trying to login as root. Root login was disabled,
 but I just didnt feel safe enabling username/password authentication. SSH keys solve this issue but if
 you are at someone's laptop and you need to login then you are stuck because your SSH key is at home.
@@ -9,14 +9,14 @@ you are at someone's laptop and you need to login then you are stuck because you
 This solves that issue by enabling password login and only allows people who you allow manually.
 
 
-#How it works
+# How it works
 When someone successfully enters their password, this module is called. It sends a message to the owner
 of the server via telegram. It reports what user is trying to sign in and gives the owner a choice
 of accepting or denying the user. If the user replies to the telegram bot with "/allow" then a authentication
 code is sent via telegram that is to be entered into the terminal as a password. The user is then given
 access to the system.
 
-#How to install
+# How to install
 First install dependancies
 
 ```
@@ -57,16 +57,8 @@ Once you have set up all of this, go ahead and type in
 make compile
 ```
 
-
-
 Now that you have compiled the code you will now see a 'build' folder.
 Place the pam_telegram.so that is found in the "build" folder wherever you feel is fit.
-Make sure you chmod it as so
-
-```
-chmod 111 pam_telegram.so
-```
-This prevents tampering of any kind.
 
 In /etc/pam.d/ssh (or whatever login prompt you want to enable this on)
 Add this line
