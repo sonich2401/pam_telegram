@@ -20,7 +20,7 @@ access to the system.
 First install dependancies
 
 ```
-sudo apt-get install libpam0g-dev libcurl4-openssl-dev
+sudo make depend
 ```
 This is nessisary for interfacing with PAM and also interfacing with the internet
 
