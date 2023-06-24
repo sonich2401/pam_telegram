@@ -16,51 +16,24 @@ of accepting or denying the user. If the user replies to the telegram bot with "
 code is sent via telegram that is to be entered into the terminal as a password. The user is then given
 access to the system.
 
-# How to install
-First install dependancies
+# How to install (Part 1)
+Because getting your Telegram user id is not super simple I make a script to automate it. Just run
 
 ```
-sudo make depend
-```
-This is nessisary for interfacing with PAM and also interfacing with the internet
-
-
-Inside of 'pam_telegram.cpp' there is a few settings you need to set.
-
-The most important are the 'API_TOKEN' and the 'CHAT_ID'.
-They are the required for interfacing with Telegram.
-You can get a API_TOKEN by messaging the BotFather on Telegram and
-running the '/newbot' command.
-
-The CHAT_ID is a bit harder to get. Once you have your bot running, send it a message 
-containing any text you want.
-
-Then type this url into the 'curl' program in your Linux terminal or use it in your
-favorite browser.
-
-https://api.telegram.org/bot<API_TOKEN>/getUpdates?limit=1?offset=-1
-
-You should see a bunch of text. Search for the words 'chat_id' and copy the value into
-the 'CHAT_ID' macro in pam_telegram.cpp. MAKE SURE that it is contained in quotes so that it is a string.
-If you do not do this then the compilation will error out.
-
-I have included a script called "get_chat_id.sh" that should automate this for you.
-
-
-If you want a recovery password just in case Telegram goes down, you can set that in the
-'RECOVERY_PASSWORD' macro
-
-
-Once you have set up all of this, go ahead and type in
-
-```
-make compile
+./install.sh
 ```
 
-Now that you have compiled the code you will now see a 'build' folder.
-Place the pam_telegram.so that is found in the "build" folder wherever you feel is fit.
+and it should walk you through how to install this module. You will need super user privledges to install
+dependancies and create the directory for the PAM module.
 
-In /etc/pam.d/ssh (or whatever login prompt you want to enable this on)
+If you would rather manually set it up (maybe because you do not have sudo but still want to compile) you can use the
+'get_chat_id.sh' script although I do not recomend this as you will need sudo later to install the module. It is just better
+to stick with the install.sh
+
+# How to install (Part 2)
+Setting up your PAM config is up to you. However, I recomend setting it up like so..
+
+In /etc/pam.d/sshd (or whatever login prompt you want to enable this on)
 Add this line
 ```
 auth required	<PATH_TO_PAM_TELEGRAM_SO>/pam_telegram.so
