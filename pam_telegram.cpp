@@ -10,6 +10,14 @@
 #include <sys/wait.h>
 #include "json.hpp"
 
+#define INVALID_USER_ID 0
+typedef unsigned long user_id_t;
+
+typedef struct {
+	user_id_t user_id;
+	const char* user_name;
+}user_group_t;
+
 
 #include "settings.h" //Open this file to edit settings
 
@@ -33,7 +41,7 @@ static char result = TELE_UPDATE;
 
 static json updates;
 
-#define API_URL "https://api.telegram.org/bot"API_TOKEN
+#define API_URL "https://api.telegram.org/bot" API_TOKEN
 
 static CURL* curl = NULL;
 
@@ -70,7 +78,15 @@ static void generic_execute(){
 
 //If the compiler does not support restrict then recover
 #ifndef __restrict
-	#define __restrict
+	#ifndef __restrict__
+		#ifndef restrict
+			#define __restrict
+		#else
+			#define __restrict restrict
+		#endif
+	#else
+		#define __restrict __restrict__
+	#endif
 #endif
 
 static inline void generic_send_message(const char* __restrict options){
@@ -81,22 +97,36 @@ static inline void generic_send_message(const char* __restrict options){
 
 
 
-static void send_message(){
+void send_message(user_id_t user_id){
+	curl_easy_setopt(curl, CURLOPT_URL, API_URL"/sendMessage");
 	char* options = NULL;
-	asprintf(&options, "chat_id=" CHAT_ID "&text=User with the name \"%s\" is trying to sign in. /allow or /deny", username);
+	int ret = asprintf(&options, "chat_id=%lu&text=User with the name %s is trying to sign in. /allow or /deny", user_id, username);
+	if(ret <= -1){
+		result = TELE_ERR;
+		return;
+	}
 	generic_send_message(options);
-	free(options);
 }
 
-static void send_code(){
+void send_code(user_id_t user_id){
+	curl_easy_setopt(curl, CURLOPT_URL, API_URL"/sendMessage");
 	char* options = NULL;
-	asprintf(&options, "chat_id=" CHAT_ID "&text=As you wish! Your login code is %s", code);
+	int ret = asprintf(&options, "chat_id=%lu&text=As you wish! Your login code is %s", user_id, code);
+	if(ret <= -1){
+		result = TELE_ERR;
+		return;
+	}
 	generic_send_message(options);
-	free(options);
 }
 
-static void send_deny(){
-	char* options =  "chat_id=" CHAT_ID "&text=You shall not pass! (user was denied and disconencted)";
+void send_deny(user_id_t user_id){
+	curl_easy_setopt(curl, CURLOPT_URL, API_URL"/sendMessage");
+	char* options = NULL;
+	int ret = asprintf(&options, "chat_id=%lu&text=You shall not pass! (user was denied and disconencted)", user_id);
+	if(ret <= -1){
+		result = TELE_ERR;
+		return;
+	}
 	generic_send_message(options);
 }
 
@@ -113,7 +143,7 @@ static size_t writeFunction(void *ptr, size_t size, size_t nmemb, std::string* d
 	return size * nmemb;	        
 }
 
-static void wait_for_response(){
+static void wait_for_response(user_id_t user_id){
 	unsigned long last_id = 0;
 
 	get_message();
@@ -134,23 +164,23 @@ static void wait_for_response(){
 			continue;
 		}
 
-		if(std::to_string((unsigned long)updates["result"][0]["message"]["from"]["id"]) != CHAT_ID){
+		if((user_id_t)updates["result"][0]["message"]["from"]["id"] != (user_id_t)user_id){
 			printf("UNAUTH %lu\n", (unsigned long)updates["result"][0]["message"]["from"]["id"]);
 			continue;
 		}
 		
         //Check if the admin has allowed the user
-		if(strcmp(std::string(updates["result"][0]["message"]["text"]).c_str(), "/allow") == 0){
+		if(strncmp(std::string(updates["result"][0]["message"]["text"]).c_str(), "/allow", strlen("/allow")) == 0){
 			puts("ACCEPTED");
 			result = TELE_ALLOW;
-			send_code();
+			send_code(user_id);
 			break;
 		}
 		//Check if the admin has denied the user
-		if(strcmp(std::string(updates["result"][0]["message"]["text"]).c_str(), "/deny") == 0){
+		if(strncmp(std::string(updates["result"][0]["message"]["text"]).c_str(), "/deny", strlen("/deny")) == 0){
 			puts("DENY");
 			result = TELE_DENY;
-			send_deny();
+			send_deny(user_id);
 			break;
 		}
 		sleep(UPDATE_DELAY); //Wait so we dont get rate limited
@@ -168,7 +198,7 @@ static void wait_for_response(){
 
 
 
-static void telegram()
+static void telegram(user_id_t user_id)
 {
   curl_global_init(CURL_GLOBAL_ALL);
  
@@ -179,13 +209,13 @@ static void telegram()
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_string);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, &header_string);
     
-    send_message();
+    send_message(user_id);
     if(result == TELE_ERR){
     	puts("RES FROM SEND MESSAGE ERR");
     	return;
     }
  
-   	wait_for_response();
+   	wait_for_response(user_id);
 
     /* always cleanup */
     curl_easy_cleanup(curl);
@@ -193,12 +223,22 @@ static void telegram()
   curl_global_cleanup();
 }
 
-
+user_id_t find_user_id(const char* __restrict__ name){
+	for(unsigned int i = 0; i < USER_GROUPS_SIZE; i++){
+		if(strncmp(name, USER_GROUPS[i].user_name, strlen(USER_GROUPS[i].user_name)) == 0){
+			return USER_GROUPS[i].user_id;
+		}
+	}
+	return INVALID_USER_ID;
+}
 
 
 PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, const char **argv) {
     int ret;
-
+	(void)flags;
+	(void)argc;
+	(void)argv;
+    
 	result = TELE_UPDATE;
 	srand(time(NULL));
 
@@ -208,11 +248,24 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
         return ret;
     }
 
+    //Get telegram chat ID
+    user_id_t user_id = find_user_id(username);
+    if(user_id == INVALID_USER_ID){
+    	#ifdef DEFAULT_AUTH_USER
+    		user_id = CHAT_ID;
+    	#else
+    		return PAM_AUTH_ERR;
+    	#endif
+    }
+
 	code = NULL;
-	asprintf(&code, "%X", rand());
+	ret = asprintf(&code, "%X", rand());
+	if(ret <= -1){ //Ran out of memory
+		return PAM_AUTH_ERR;
+	}
 
 	try{
-		telegram();
+		telegram(user_id);
 	}
 	//If there is any errors, require the recovery password (as seen later)
 	catch(const std::exception& e){
@@ -260,13 +313,13 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
         return PAM_AUTH_ERR;
     }
 	#ifndef PAM_TELEGRAM_NO_RECOVERY
-    	char strcmp_res = (strcmp(resp->resp, RECOVERY_PASSWORD) == 0);
+    	char strcmp_res = (strncmp(resp->resp, RECOVERY_PASSWORD, strlen(RECOVERY_PASSWORD)) == 0);
 	#else
 		char strcmp_res = 0;
 	#endif
 
 	if(result == TELE_ALLOW){
-		strcmp_res |= (strcmp(resp->resp, code) == 0);
+		strcmp_res |= (strncmp(resp->resp, code, strlen(code)) == 0);
 	}
 
     free(resp->resp);
@@ -280,5 +333,9 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *pamh, int flags, int argc, cons
 
 
 PAM_EXTERN int pam_sm_setcred(pam_handle_t *pamh, int flags, int argc, const char **argv) {
+	(void)pamh;
+	(void)flags;
+	(void)argc;
+	(void)argv;
     return PAM_SUCCESS;
 }

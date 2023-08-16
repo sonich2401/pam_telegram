@@ -18,9 +18,22 @@ POST https://api.telegram.org/bot<API_TOKEN>/getUpdates?limit=1&offset=-1
 
 You should find the chat_id inside the json response
 */
-#define CHAT_ID "YOUR_CHAT"
+#define CHAT_ID 123456 /* DEFAULT Chat id (int)*/
+#define SYSTEM_NAME "YOUR USERNAME (on the linux system)"
 
 #define API_TOKEN "YOUR_TOKEN"
 //50 characters or more is recommended. You will most likely never need this. It is only for if Telegram goes down for any reason.
 #define RECOVERY_PASSWORD "YOUR_RECOVERY_PASSWORD"
+
+
+//If there is a user that is not whitelisted then you can send all un-whitelisted requests to the admin specified with 'CHAT_ID'
+#define DEFAULT_AUTH_USER
+
+
+#define USER_GROUPS_SIZE (1) //This is the number of whitelisted users (ass seen below)
+const user_group_t USER_GROUPS[USER_GROUPS_SIZE] = {
+	{CHAT_ID, SYSTEM_NAME}, //Format is {user_id (int), user_name (string)},
+};
+
+
 ///////////////////

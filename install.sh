@@ -53,6 +53,14 @@ if [ -z "$delay" ]; then
 	exit 1
 fi
 
+echo "If a user is not reconized, should ...\n\t- An admin still get a message for accepting or denying the request? (true)\n\t- Deny any users who are not whitelisted in settings.h (false)\nDEFAULT IS 'true'"
+read enable_default_chat
+
+if [ -z "$enable_default_chat" ]; then
+	echo "No info was given. Defaulting to 'true'"
+	enable_default_chat="true"
+fi
+
 
 
 
@@ -70,7 +78,7 @@ fi
 echo "Generating settings.h ..."
 echo "" > settings.h
 echo "#pragma once\n" >> settings.h
-echo "#define CHAT_ID \"$chat_id\"\n" >> settings.h
+echo "#define CHAT_ID $chat_id\n" >> settings.h
 echo "#define API_TOKEN \"$token\"" >> settings.h
 echo "#define UPDATE_DELAY $delay" >> settings.h
 
@@ -80,6 +88,16 @@ then
 else
 	echo "#define PAM_TELEGRAM_NO_RECOVERY" >> settings.h
 fi
+if [ $enable_default_chat = "true" ]
+then
+	echo "#define DEFAULT_AUTH_USER" >> settings.h
+fi
+
+echo "#define USER_GROUPS_SIZE (1)" >> settings.h
+echo "const user_group_t USER_GROUPS[USER_GROUPS_SIZE] = {" >> settings.h
+echo "\t{$chat_id, \"$(whoami)\"}," >> settings.h
+echo "};" >> settings.h
+
 clear
 echo "Done generating settings!\n"
 echo "Your default editor will now open to ensure that the settings were correct in 10 seconds ..."
